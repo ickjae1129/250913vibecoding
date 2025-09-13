@@ -91,4 +91,53 @@ num_df = to_numeric(df, exclude=[country_col])
 row_sums = num_df[mbti_cols].sum(axis=1)
 mean_sum = row_sums.mean(skipna=True)
 
-if abs(me
+if abs(mean_sum - 1) < 0.05:
+    value_type = "proportion"
+    work_df = num_df.copy()
+elif abs(mean_sum - 100) < 5:
+    value_type = "percent"
+    work_df = num_df.copy()
+    work_df[mbti_cols] = work_df[mbti_cols] / 100.0
+else:
+    value_type = "count"
+    work_df, _ = infer_to_proportion(num_df, mbti_cols)
+
+st.sidebar.write(f"**값 유형 추정:** {value_type}")
+
+sel_type = st.sidebar.selectbox("MBTI 유형 선택", MBTI_TYPES, index=MBTI_TYPES.index("INFP"))
+work_df["__country__"] = df[country_col].astype(str)
+ranked = work_df[["__country__", sel_type]].rename(columns={sel_type: "share"}).dropna()
+ranked = ranked.sort_values("share", ascending=False).head(10)
+ranked["percent"] = (ranked["share"] * 100).round(2)
+
+base = alt.Chart(ranked).encode(
+    x=alt.X("share:Q", title="비율", axis=alt.Axis(format=".0%")),
+    y=alt.Y("__country__:N", sort="-x", title="국가"),
+    tooltip=["__country__", "percent"],
+)
+
+bars = base.mark_bar().interactive()
+text = base.mark_text(align="left", dx=3).encode(text="percent")
+
+st.subheader(f"{sel_type} 비율이 가장 높은 국가 Top 10")
+st.altair_chart(bars + text, use_container_width=True)
+
+st.divider()
+st.markdown("### 결과 데이터")
+st.dataframe(ranked, use_container_width=True)
+
+csv = ranked.to_csv(index=False).encode("utf-8-sig")
+st.download_button(
+    label="Top 10 결과 CSV 다운로드",
+    data=csv,
+    file_name=f"mbti_top10_{sel_type}.csv",
+    mime="text/csv",
+)
+
+with st.expander("진단 정보 보기"):
+    st.write({
+        "country_col": country_col,
+        "mbti_cols_found": mbti_cols,
+        "mean_row_sum_before_norm": float(mean_sum) if pd.notna(mean_sum) else None,
+        "value_type_inferred": value_type,
+    })
