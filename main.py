@@ -1,4 +1,4 @@
-# app.py
+# main.py
 # Streamlit MBTI -> 취미 추천 웹앱
 import random
 import textwrap
